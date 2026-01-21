@@ -14,7 +14,8 @@ RUN git clone https://gitdab.com/cadence/out-of-your-element.git . && \
     git checkout ${OOYE_REF}
 
 # Install dependencies
-RUN npm install --omit=dev
+RUN npm install node-addon-api node-gyp && \
+    npm install --omit=dev
 
 # Runtime stage
 FROM node:22-alpine
