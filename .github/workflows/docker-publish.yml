@@ -1,0 +1,83 @@
+name: Docker
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      ooye_ref:
+        description: 'OOYE Git Reference (branch/tag). Leave empty for latest upstream tag.'
+        required: false
+        type: string
+
+env:
+  # Use ghcr.io
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: t2linux/out-of-your-element
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve OOYE Ref
+        id: resolve
+        run: |
+          INPUT_REF="${{ inputs.ooye_ref }}"
+          if [ -n "$INPUT_REF" ]; then
+             echo "Using manual ref: $INPUT_REF"
+             echo "ref=$INPUT_REF" >> $GITHUB_OUTPUT
+             echo "is_latest_stable=false" >> $GITHUB_OUTPUT
+          else
+             # Fetch latest tag from upstream
+             # Sort by version refname, tail -n 1
+             LATEST_TAG=$(git ls-remote --tags --refs --sort='v:refname' https://gitdab.com/cadence/out-of-your-element | tail -n1 | awk '{print $2}' | sed 's|refs/tags/||')
+             echo "Found latest upstream tag: $LATEST_TAG"
+             echo "ref=$LATEST_TAG" >> $GITHUB_OUTPUT
+             echo "is_latest_stable=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tag with the resolved ref (e.g., v3.3 or main)
+            type=raw,value=${{ steps.resolve.outputs.ref }}
+            # Tag with 'latest' only if we auto-detected the latest stable version
+            type=raw,value=latest,enable=${{ steps.resolve.outputs.is_latest_stable }}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+             OOYE_REF=${{ steps.resolve.outputs.ref }}
