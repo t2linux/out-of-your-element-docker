@@ -10,7 +10,7 @@ First, you need to run the setup script to generate the configuration files (`re
 
 ```bash
 mkdir data
-docker run --rm -it -v $(pwd)/data:/data ghcr.io/t2linux/out-of-your-element:main setup
+docker run --rm -it -v $(pwd)/data:/data ghcr.io/t2linux/out-of-your-element:latest setup
 ```
 
 Follow the interactive prompts. The configuration files will be saved to your `./data` directory.
@@ -24,7 +24,7 @@ docker run -d \
   --name ooye \
   -v $(pwd)/data:/data \
   -p 6693:6693 \
-  ghcr.io/t2linux/out-of-your-element:main
+  ghcr.io/t2linux/out-of-your-element:latest
 ```
 
 ### Persistence
